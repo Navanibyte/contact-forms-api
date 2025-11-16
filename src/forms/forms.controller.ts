@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable prettier/prettier */
-import { Controller, Post, Body, Get, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, UseGuards, Request, Put } from '@nestjs/common';
 import { FormsService } from './forms.service';
 import { CreateFormDto } from './dto/create-form.dto';
 import { AuthGuard } from 'src/auth/guards/auth.guard';
+import { UpdateFormDto } from './dto/update-form.dto';
 
 @Controller('forms')
 export class FormsController {
@@ -20,6 +22,16 @@ export class FormsController {
     @Get('')
     findAllByUser(@Request() request: any) {
         return this.formsService.findAllByUser(request.user.userId);
+    }
+
+    @UseGuards(AuthGuard)
+    @Put(':id')
+    update(
+        @Param('id') id: number,
+        @Body() updateFormDto: UpdateFormDto,
+        @Request() req: any
+    ) {
+        return this.formsService.update(id, updateFormDto, req.user.userId);
     }
 
     @Get(':id')

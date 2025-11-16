@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable prettier/prettier */
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -7,6 +9,7 @@ import { Form } from './entity/form.entity';
 import { FormField } from './entity/form-field.entity';
 
 import { CreateFormDto } from './dto/create-form.dto';
+import { UpdateFormDto } from './dto/update-form.dto';
 
 @Injectable()
 export class FormsService {
@@ -43,6 +46,44 @@ export class FormsService {
         });
     }
 
+    async update(formId: number, updateFormDto: UpdateFormDto, userId: number) {
+        const { fields, ...formData } = updateFormDto;
+
+        // 1. Check if form exists and belongs to the user
+        const existingForm = await this.formRepo.findOne({
+            where: { form_id: formId, userId },
+            relations: ['fields'],
+        });
+
+        if (!existingForm) {
+            throw new NotFoundException("Form not found or you don't have access");
+        }
+
+        // 2. Update the form (title, description)
+        await this.formRepo.update({ form_id: formId }, { ...formData });
+
+        // 3. Delete old fields
+        await this.fieldRepo.delete({ form: { form_id: formId } });
+
+        // 4. Insert new fields
+        const newFieldEntities = fields.map((field) =>
+            this.fieldRepo.create({
+                ...field,
+                form: existingForm,
+                userId
+            })
+        );
+
+        await this.fieldRepo.save(newFieldEntities);
+
+        // 5. Return fresh updated form
+        return this.formRepo.findOne({
+            where: { form_id: formId },
+            relations: ['fields'],
+        });
+    }
+
+
 
     findAll() {
         return this.formRepo.find({ relations: ['fields'] });
@@ -55,8 +96,17 @@ export class FormsService {
         });
     }
 
-    findOne(id: number) {
-        return this.formRepo.findOne({ where: { form_id: id }, relations: ['fields'] });
+    async findOne(id: number) {
+        const form = await this.formRepo.findOne({
+            where: { form_id: id },
+            relations: ['fields'],
+        });
+
+        if (!form) {
+            throw new NotFoundException("Form not found");
+        }
+
+        return form;
     }
 
     async remove(id: number) {
