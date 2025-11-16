@@ -18,5 +18,7 @@ import { PassportAuthController } from './passport-auth-controller';
       signOptions: { expiresIn: '1d' },
     })
   ],
+
+  exports: [AuthService]
 })
 export class AuthModule { }

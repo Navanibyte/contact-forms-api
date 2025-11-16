@@ -2,8 +2,9 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm'
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { FormsModule } from './forms/forms.module';
 
 @Module({
   imports: [
@@ -14,12 +15,13 @@ import { AuthModule } from './auth/auth.module';
       username: 'root',
       password: 'password',
       database: 'custom_form',
-      // entities: [],
       autoLoadEntities: true,
-
       synchronize: true,
     }),
-    AuthModule,],
+    AuthModule,
+    FormsModule,   // <-- ONLY import module
+  ],
+
   controllers: [AppController],
   providers: [AppService],
 })
