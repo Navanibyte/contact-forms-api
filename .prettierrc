@@ -1,0 +1,11 @@
+{
+  "name": "contact-form-api",
+  "version": "1.0.0",
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all"
+  },
+  "scripts": {
+    "format": "prettier --write ."
+  }
+}
