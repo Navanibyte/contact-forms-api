@@ -138,7 +138,8 @@ export class FormsService {
         await this.mailer.sendMail({
             to: email, // replace later with actual user email
             subject: `Form Submitted Successfully`,
-            text: `Your form ${formId} has been submitted.\n\nDetails:\n${JSON.stringify(dto, null, 2)}`
+            // text: `Your form ${formId} has been submitted.\n\nDetails:\n${JSON.stringify(dto, null, 2)}`
+            html: dto.html, // <-- send HTML here
         });
 
         return saved;
