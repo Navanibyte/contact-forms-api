@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable prettier/prettier */
@@ -10,12 +11,17 @@ import { FormField } from './entity/form-field.entity';
 
 import { CreateFormDto } from './dto/create-form.dto';
 import { UpdateFormDto } from './dto/update-form.dto';
+import { FormSubmission } from './entity/form-submission.entity';
+import { MailerService } from '@nestjs-modules/mailer';
+import { SubmitFormDto } from './dto/submit-form.dto';
 
 @Injectable()
 export class FormsService {
     constructor(
         @InjectRepository(Form) private formRepo: Repository<Form>,
         @InjectRepository(FormField) private fieldRepo: Repository<FormField>,
+        @InjectRepository(FormSubmission) private submissionRepo: Repository<FormSubmission>,
+        private mailer: MailerService,
     ) { }
 
     async create(createFormDto: CreateFormDto, userId: number) {
@@ -112,4 +118,30 @@ export class FormsService {
     async remove(id: number) {
         return this.formRepo.delete(id);
     }
+
+
+    async submitForm(
+        formId: string,
+        userId: number,
+        email: string,
+        dto: SubmitFormDto,
+    ) {
+        const submission = this.submissionRepo.create({
+            form_id: formId,
+            user_id: userId,
+            submission_json: dto,
+        });
+
+        const saved = await this.submissionRepo.save(submission);
+
+        // Send email to user
+        await this.mailer.sendMail({
+            to: email, // replace later with actual user email
+            subject: `Form Submitted Successfully`,
+            text: `Your form ${formId} has been submitted.\n\nDetails:\n${JSON.stringify(dto, null, 2)}`
+        });
+
+        return saved;
+    }
+
 }
