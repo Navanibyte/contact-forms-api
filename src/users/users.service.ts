@@ -11,7 +11,6 @@ export class UsersService {
         @InjectRepository(User)
         private repo: Repository<User>) { }
 
-    // eslint-disable-next-line @typescript-eslint/require-await
     async findUserByName(email: string) {
         return this.repo.findOne({ where: { email } });
     }

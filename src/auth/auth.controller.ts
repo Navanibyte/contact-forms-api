@@ -15,8 +15,8 @@ export class AuthController {
     constructor(private authService: AuthService, private userService: UsersService, private jwtService: JwtService) { }
     @HttpCode(HttpStatus.OK)
     @Post("login")
-    async login(@Body() input: { username: string; password: string }) {
-        const user = await this.userService.findUserByName(input.username);
+    async login(@Body() input: { email: string; password: string }) {
+        const user = await this.userService.findUserByName(input.email);
         if (!user) throw new UnauthorizedException();
 
         const valid = await bcrypt.compare(input.password, user.password);
