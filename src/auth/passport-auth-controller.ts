@@ -12,7 +12,6 @@ export class PassportAuthController {
     @HttpCode(HttpStatus.OK)
     @Post("login")
     async login(@Body() input: { username: string; password: string }) {
-        console.log(input);
         return this.authService.autheticate(input);
     }
 

@@ -9,19 +9,21 @@ import { Form } from './entity/form.entity';
 import { FormField } from './entity/form-field.entity';
 import { FormSubmission } from './entity/form-submission.entity';
 import { MailerModule } from '@nestjs-modules/mailer';
+import { AuthModule } from 'src/auth/auth.module';
 
 
 @Module({
     imports: [
+        AuthModule,
         TypeOrmModule.forFeature([Form, FormField, FormSubmission]),
         MailerModule.forRoot({
             transport: {
-                host: 'smtp.gmail.com',   // Replace with your SMTP host
-                port: 587,
+                host: process.env.EMAIL_HOST,   // Replace with your SMTP host
+                port: Number(process.env.EMAIL_PORT),           // Replace with your SMTP port
                 secure: false,
                 auth: {
-                    user: 'navanik81@gmail.com',   // Replace with your SMTP user
-                    pass: 'rhah mnvg aypf pply',      // Replace with your SMTP password
+                    user: process.env.EMAIL_USER,   // Replace with your SMTP user
+                    pass: process.env.EMAIL_PASS,      // Replace with your SMTP password
                 },
             },
         }),

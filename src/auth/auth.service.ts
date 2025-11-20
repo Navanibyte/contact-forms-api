@@ -3,9 +3,7 @@
 /* eslint-disable prettier/prettier */
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Sign } from 'crypto';
 import { UsersService } from 'src/users/users.service';
-import { Auth } from 'typeorm';
 
 import * as bcrypt from 'bcryptjs';
 
