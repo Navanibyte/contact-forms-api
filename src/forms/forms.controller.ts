@@ -6,7 +6,7 @@
 import { Controller, Post, Body, Get, Param, Delete, UseGuards, Request, Put, Req } from '@nestjs/common';
 import { FormsService } from './forms.service';
 import { CreateFormDto } from './dto/create-form.dto';
-import { AuthGuard } from 'src/auth/guards/auth.guard';
+import { AuthGuard } from "../auth/guards/auth.guard";
 import { UpdateFormDto } from './dto/update-form.dto';
 import { SubmitFormDto } from './dto/submit-form.dto';
 
@@ -53,6 +53,10 @@ export class FormsController {
         @Body() dto: SubmitFormDto,
         @Req() req: any,
     ) {
+
+        console.log("DEBUG → EMAIL_USER =", process.env.EMAIL_USER);
+        console.log("DEBUG → EMAIL_PASS =", process.env.EMAIL_PASS);
+
         const userId = req.user.userId; // logged-in user
         const email = req.user.username; // logged-in user's email
 

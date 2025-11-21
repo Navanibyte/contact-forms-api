@@ -1,42 +1,42 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable prettier/prettier */
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthGuard } from './guards/auth.guard';
-import { JwtService } from '@nestjs/jwt';
-import { UsersService } from 'src/users/users.service';
-import * as bcrypt from 'bcryptjs';
+import {
+    Body,
+    Controller,
+    Get,
+    Post,
+    UseGuards,
+    Request,
+} from "@nestjs/common";
+import { AuthService } from "./auth.service";
+import { SignUpDto } from "./Dto/signUp.dto";
+import { GoogleOAuthGuard } from "./services/oauth.strategies/google-oauth.strategy/google-oauth.guard";
+import { LoginDto } from "./Dto/login.dto";
+import { IgoogleRequestUser } from "./services/interfaces/google.interface";
 
-@Controller('auth')
+@Controller("/api/auth/")
 export class AuthController {
+    constructor(private readonly authService: AuthService) { }
 
-    constructor(private authService: AuthService, private userService: UsersService, private jwtService: JwtService) { }
-    @HttpCode(HttpStatus.OK)
-    @Post("login")
-    async login(@Body() input: { email: string; password: string }) {
-        const user = await this.userService.findUserByName(input.email);
-        if (!user) throw new UnauthorizedException();
-
-        const valid = await bcrypt.compare(input.password, user.password);
-        if (!valid) throw new UnauthorizedException();
-
-        const token = this.jwtService.sign({ username: user.email, sub: user.id }, { expiresIn: '1d' });
-
-        return { accessToken: token, userId: user.id, username: user.email };
-
+    @Post("sign-up")
+    async signUp(@Body() signUpDto: SignUpDto) {
+        console.log("SignUpDto:", signUpDto);
+        return this.authService.signUp(signUpDto);
     }
 
-    @HttpCode(HttpStatus.OK)
-    @Post("register")
-    async register(@Body() input: { email: string; password: string }) {
-        return this.authService.register(input.email, input.password);
+    @Post("log-in")
+    async signIn(@Body() loginDto: LoginDto) {
+        return this.authService.logIn(loginDto);
     }
 
-    @UseGuards(AuthGuard)
-    @Get("me")
-    me(@Request() request: any): any {
-        return request?.user;
+    @Get("login/google")
+    @UseGuards(GoogleOAuthGuard)
+    async loginGoogle() { }
+
+    @Get("callback/google")
+    @UseGuards(GoogleOAuthGuard)
+    async googleCallback(@Request() req: any) {
+        const user = req?.user as IgoogleRequestUser;
+        return this.authService.googleLogin(user);
     }
 }

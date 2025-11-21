@@ -1,61 +1,375 @@
-/* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable prettier/prettier */
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { UsersService } from 'src/users/users.service';
-
-import * as bcrypt from 'bcryptjs';
-
-type AuthInput = { username: string; password: string };
-type SignInData = { userId: number; username: string };
-type AuthResult = { accessToken: string; userId: number; username: string };
+import {
+    BadRequestException,
+    ConflictException,
+    HttpStatus,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { SignUpDto } from './Dto/signUp.dto';
+import { EntityManager } from 'typeorm';
+import { PasswordUtils } from './services/utils/Password.utils';
+import { JwtService } from './services/jwt/jwt.service';
+import { IuserData } from './services/interfaces/jwt.interfaces';
+import { LoginDto } from './Dto/login.dto';
+import { IgoogleRequestUser } from './services/interfaces/google.interface';
+import { IouthDetails } from './services/interfaces/oauth.interface';
 
 @Injectable()
 export class AuthService {
+    private static readonly logger = new Logger(AuthService.name);
     constructor(
-        private userService: UsersService,
-        private jwtService: JwtService
-
+        private readonly entityManager: EntityManager,
+        private jwtService: JwtService,
     ) { }
 
+    async signUp(signUpDto: SignUpDto) {
+        try {
+            const response = await this.entityManager.transaction(
+                async (transactionalEntityManager) => {
+                    const isUserExists = await this.checkUserExists(
+                        transactionalEntityManager,
+                        signUpDto.email,
+                    );
+                    if (isUserExists.length > 0) {
+                        throw new ConflictException('User already exists');
+                    }
 
-    async register(email: string, password: string) {
-        const hashed = await bcrypt.hash(password, 10);
-        return this.userService.create({ email, password: hashed });
-    }
+                    const passwordValidationResult =
+                        PasswordUtils.getPasswordValidationDetails(signUpDto.password);
+                    if (!passwordValidationResult.isValid) {
+                        throw new BadRequestException('Password is not strong enough');
+                    }
 
+                    // Hash password
+                    const passwordHash = await PasswordUtils.hashPassword(
+                        signUpDto.password,
+                    );
 
+                    console.log("passwordHash---->", passwordHash);
 
+                    // Insert into users table
+                    const userId = await this.insertUserDetails(
+                        transactionalEntityManager,
+                        signUpDto.email,
+                        signUpDto.name,
+                        passwordHash
+                    );
 
-    async autheticate(input: AuthInput): Promise<AuthResult> {
-        const user = await this.validateUser(input);
+                    // Insert into user_jwt_auth table
+                    await this.insertJwtAuthDetails(
+                        transactionalEntityManager,
+                        userId,
+                        passwordHash,
+                    );
 
-        if (!user) {
-            throw new UnauthorizedException();
-        }
+                    // Get created user
+                    const user = await this.getUserDetails(
+                        transactionalEntityManager,
+                        userId,
+                        signUpDto.email,
+                    );
+                    // Generate JWT token
+                    const accessToken: any = this.jwtService.createAccessToken({
+                        id: user.id,
+                        email: user.email,
+                        name: user.name,
+                        twoFactorEnabled: user.twoFactorEnabled
+                            ? user.twoFactorEnabled
+                            : null,
+                    });
 
-        return this.signIn(user);
-
-    }
-
-    async validateUser(input: AuthInput): Promise<SignInData | null> {
-        const user = await this.userService.findUserByName(input.username);
-        if (user && user.password === input.password) {
-            return {
-                userId: user.id,
-                username: user.email
+                    return {
+                        success: true,
+                        message: 'User registered successfully',
+                        data: { accessToken },
+                    };
+                },
+            );
+            return response;
+        } catch (error) {
+            console.log('error---->', error.mes);
+            if (error instanceof ConflictException) {
+                throw error;
             }
+
+            throw new BadRequestException('Registration failed. Please try again.');
         }
-        return null;
     }
 
+    async checkUserExists(
+        entityManager: EntityManager,
+        email: string,
+    ): Promise<any> {
+        try {
+            const query =
+                'SELECT email, name, id, password, two_factor_auth_enabled AS twoFactorEnabled FROM custom_form.user WHERE email = ?';
+            const user = await entityManager.query(query, [email]);
+            return user;
+        } catch (error) {
+            console.log('error----> in checkUserExists', error);
+        }
+    }
 
-    async signIn(user: SignInData): Promise<AuthResult> {
-        const payload = { username: user.username, sub: user.userId };
+    async insertUserDetails(
+        entityManager: EntityManager,
+        email: string,
+        name: string,
+        password: string,
+    ) {
+        try {
+            const query = 'INSERT INTO custom_form.user (email, name, password) VALUES (?, ?, ?)';
+            const userResult = await entityManager.query(query, [email, name, password]);
 
-        const accessToken = this.jwtService.sign(payload);
+            return userResult.insertId;
+        } catch (error) {
+            console.log('error----> in insertUserDetails', error);
+        }
+    }
 
-        return { accessToken, userId: user.userId, username: user.username }
+    async insertJwtAuthDetails(
+        entityManager: EntityManager,
+        userId: number,
+        passwordHash: string,
+    ): Promise<void> {
+        try {
+            const query =
+                'INSERT INTO user_jwt_auth (user_id, password_hash) VALUES (?, ?)';
+            const jwtAuthResult = await entityManager.query(query, [
+                userId,
+                passwordHash,
+            ]);
+            return jwtAuthResult.insertId;
+        } catch (error) {
+            console.log('error----> in insertJwtAuthDetails', error);
+        }
+    }
+
+    async getUserDetails(
+        entityManager: EntityManager,
+        userId: number,
+        email: string,
+    ) {
+        try {
+            const query =
+                'SELECT id, email, name, two_factor_auth_enabled AS twoFactorEnabled FROM custom_form.user WHERE id = ? AND email=?';
+            const user = await entityManager.query(query, [userId, email]);
+            return user[0];
+        } catch (error) {
+            console.log('error----> in getUserDetails', error);
+        }
+    }
+
+    async getJwtAuthDetails(
+        entityManager: EntityManager,
+        userId: number,
+    ): Promise<any> {
+        try {
+            const query =
+                'SELECT password_hash AS passwordHash FROM custom_form.user_jwt_auth WHERE user_id = ?';
+            const jwtAuth = await entityManager.query(query, [userId]);
+            return jwtAuth;
+        } catch (error) {
+            console.log('error----> in getJwtAuthDetails', error);
+        }
+    }
+
+    async logIn(loginDto: LoginDto) {
+        try {
+            console.log("LoginDto:", loginDto);
+            const isUserExists = await this.checkUserExists(
+                this.entityManager,
+                loginDto.email,
+            );
+            if (isUserExists.length === 0) {
+                throw new NotFoundException('User not found');
+            }
+
+            const jwtAuthDetails = await this.getJwtAuthDetails(
+                this.entityManager,
+                isUserExists[0].id,
+            );
+            if (!(jwtAuthDetails.length > 0)) {
+                throw new NotFoundException('JWT authentication details not found');
+            }
+
+            const isPasswordValid = await PasswordUtils.verifyPassword(
+                loginDto.password,
+                jwtAuthDetails[0].passwordHash,
+            );
+            if (!isPasswordValid) {
+                throw new BadRequestException('Invalid Crenditials.');
+            }
+            const user = await this.getUserDetails(
+                this.entityManager,
+                isUserExists[0].id,
+                loginDto.email,
+            );
+            // Generate JWT token
+            const accessToken = this.jwtService.createAccessToken({
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                twoFactorEnabled: user.twoFactorEnabled ? user.twoFactorEnabled : null,
+            });
+
+            console.log('accessToken---->', accessToken);
+
+            return {
+                message: 'Logged In Successfully',
+                status: HttpStatus.OK,
+                data: {
+                    access_token: accessToken,
+                    user_id: isUserExists[0].user_id,
+                }
+                // token: accessToken,
+            };
+        } catch (error) {
+            console.log('error---->', error);
+        }
+    }
+
+    async googleLogin(user: IgoogleRequestUser) {
+        try {
+            const response = await this.entityManager.transaction(
+                async (transactionalEntityManager) => {
+                    const isUserExists = await this.checkUserExists(
+                        transactionalEntityManager,
+                        user.email,
+                    );
+
+                    if (isUserExists && isUserExists.length > 0) {
+                        const checkGoogleUserExists =
+                            await this.getGoogleUserDetailsExsists(
+                                user.providers,
+                                user.providerId,
+                                transactionalEntityManager,
+                            );
+                        if (checkGoogleUserExists && checkGoogleUserExists.length > 0) {
+                            const accessToken = this.jwtService.createAccessToken({
+                                id: isUserExists[0].id,
+                                email: user.email,
+                                name: `${user.firstName}${user.lastName}`,
+                                twoFactorEnabled: isUserExists[0].twoFactorEnabled
+                                    ? isUserExists[0].twoFactorEnabled
+                                    : null,
+                            });
+                            return {
+                                success: true,
+                                message: 'User Signed successfully',
+                                data: { accessToken },
+                            };
+                        } else {
+                            await this.createGoogleOuathuser(
+                                user,
+                                isUserExists[0].id,
+                                transactionalEntityManager,
+                            );
+                            const accessToken = this.jwtService.createAccessToken({
+                                id: isUserExists[0].id,
+                                email: user.email,
+                                name: `${user.firstName}${user.lastName}`,
+                                twoFactorEnabled: isUserExists[0].twoFactorEnabled
+                                    ? isUserExists[0].twoFactorEnabled
+                                    : null,
+                            });
+                            return {
+                                success: true,
+                                message: 'User Signed successfully',
+                                data: { accessToken },
+                            };
+                        }
+                    } else {
+                        const userId = await this.insertUserDetails(
+                            transactionalEntityManager,
+                            user.email,
+                            `${user.firstName} ${user.lastName}`,
+                            isUserExists[0].password,
+
+                        );
+
+                        await this.createGoogleOuathuser(
+                            user,
+                            userId,
+                            transactionalEntityManager,
+                        );
+
+                        const newGoogleUser = await this.getUserDetails(
+                            transactionalEntityManager,
+                            userId,
+                            user.email,
+                        );
+
+                        const accessToken = this.jwtService.createAccessToken({
+                            id: userId,
+                            email: user.email,
+                            name: `${user.firstName}${user.lastName}`,
+                            twoFactorEnabled: newGoogleUser.twoFactorEnabled
+                                ? newGoogleUser.twoFactorEnabled
+                                : null,
+                        });
+                        return {
+                            success: true,
+                            message: 'User Signed successfully',
+                            data: { accessToken },
+                        };
+                    }
+                },
+            );
+
+            return {
+                statusCode: 200,
+                ...response,
+            };
+        } catch (error) {
+            console.log('error---->', error);
+        }
+    }
+
+    async createGoogleOuathuser(
+        user: IgoogleRequestUser,
+        userId: number,
+        entityManager: EntityManager,
+    ) {
+        try {
+            const userDetails: IouthDetails = {
+                access_token: user.accessToken,
+                provider: user.providers,
+                provider_id: user.providerId,
+                user_id: userId,
+            };
+            const keysData = Object.keys(userDetails);
+            const columnValues = Object.values(userDetails);
+
+            const columnData = keysData.join(', ');
+
+            const values = keysData.map(() => `?`).join(', ');
+            const query = `INSERT INTO user_oauth_auth (${columnData}) VALUES (${values})`;
+            const userResult = await entityManager.query(query, columnValues);
+            return userResult.insertId;
+        } catch (error) {
+            console.log('error---->', error);
+        }
+    }
+
+    async getGoogleUserDetailsExsists(
+        provider: string,
+        providerId: string,
+        entityManager: EntityManager,
+    ) {
+        try {
+            const query = `SELECT id,user_id AS userId, provider, provider_id AS providerId FROM user_oauth_auth WHERE provider=? AND provider_id=?`;
+            const user = await entityManager.query(query, [provider, providerId]);
+            return user;
+        } catch (error) {
+            console.error("Error in getGoogleUserDetailsExsists:", error);
+            throw error;
+        }
     }
 }

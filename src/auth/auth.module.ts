@@ -1,29 +1,24 @@
 /* eslint-disable prettier/prettier */
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { UsersModule } from 'src/users/users.module';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportAuthController } from './passport-auth-controller';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { GoogleOauthStrategyService } from './services/oauth.strategies/google-oauth.strategy/google-oauth.strategy.service';
+import { PassportModule } from '@nestjs/passport';
 import { AuthGuard } from './guards/auth.guard';
+import { JwtModule } from '@nestjs/jwt';
+import { JwtService } from './services/jwt/jwt.service';
 
 @Module({
-  providers: [AuthService, AuthGuard],
-  controllers: [AuthController, PassportAuthController],
-  imports: [
-    ConfigModule, // ensures ConfigService is available
-    UsersModule,
-
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '1d' },
-      }),
-    }),
-  ],
-  exports: [AuthService, AuthGuard, JwtModule],
+    imports: [
+        PassportModule.register({ defaultStrategy: 'google', session: true }),
+        JwtModule.register({
+            global: true,
+            secret: process.env.JWT_SECRET || 'your-secret-key',
+            signOptions: { expiresIn: '24h' },
+        }),
+    ],
+    providers: [AuthService, GoogleOauthStrategyService, AuthGuard, JwtService],
+    controllers: [AuthController],
+    exports: [JwtService],
 })
 export class AuthModule { }

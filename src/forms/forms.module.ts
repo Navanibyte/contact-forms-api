@@ -10,6 +10,7 @@ import { FormField } from './entity/form-field.entity';
 import { FormSubmission } from './entity/form-submission.entity';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { AuthModule } from 'src/auth/auth.module';
+import { AuthGuard } from 'src/auth/guards/auth.guard';
 
 
 @Module({
@@ -24,12 +25,12 @@ import { AuthModule } from 'src/auth/auth.module';
                 auth: {
                     user: process.env.EMAIL_USER,   // Replace with your SMTP user
                     pass: process.env.EMAIL_PASS,      // Replace with your SMTP password
-                },
+                }
             },
         }),
     ],
     controllers: [FormsController],
-    providers: [FormsService],
+    providers: [FormsService, AuthGuard],
     exports: [FormsService],
 
 })
