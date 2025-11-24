@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable prettier/prettier */
 import {
@@ -7,6 +10,7 @@ import {
     Post,
     UseGuards,
     Request,
+    Res,
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { SignUpDto } from "./Dto/signUp.dto";
@@ -35,8 +39,15 @@ export class AuthController {
 
     @Get("callback/google")
     @UseGuards(GoogleOAuthGuard)
-    async googleCallback(@Request() req: any) {
+    async googleCallback(@Request() req: any, @Res() res: any) {
+      console.log("DEBUG → Google Callback Request User:", req.user);
         const user = req?.user as IgoogleRequestUser;
-        return this.authService.googleLogin(user);
+        const loginResult = await this.authService.googleLogin(user);
+        console.log("loginResult---->", loginResult);
+        const accessToken = loginResult?.data?.accessToken;
+        if(!accessToken){
+            return "No access token generated";
+        }
+        return res.redirect(`${process.env.FRONTEND_URL}/oauth-success?token=${accessToken}`);
     }
 }

@@ -350,6 +350,8 @@ export class AuthService {
             const columnData = keysData.join(', ');
 
             const values = keysData.map(() => `?`).join(', ');
+            console.log("columnData---->", columnData);
+            console.log("values---->", values);
             const query = `INSERT INTO user_oauth_auth (${columnData}) VALUES (${values})`;
             const userResult = await entityManager.query(query, columnValues);
             return userResult.insertId;
