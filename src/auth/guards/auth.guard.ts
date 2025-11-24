@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
@@ -29,8 +30,8 @@ export class AuthGuard implements CanActivate {
     try {
       const tokenPayload = await this.jwtService.verifyAsync(token);
       request.user = {
-        userId: tokenPayload.sub,
-        username: tokenPayload.username
+        userId: tokenPayload.userId,
+        username: tokenPayload.email
       }
       return true;
 

@@ -109,7 +109,7 @@ export class AuthService {
     ): Promise<any> {
         try {
             const query =
-                'SELECT email, name, id, password, two_factor_auth_enabled AS twoFactorEnabled FROM custom_form.user WHERE email = ?';
+                'SELECT email, name, id, password FROM custom_form.user WHERE email = ?';
             const user = await entityManager.query(query, [email]);
             return user;
         } catch (error) {
@@ -158,7 +158,7 @@ export class AuthService {
     ) {
         try {
             const query =
-                'SELECT id, email, name, two_factor_auth_enabled AS twoFactorEnabled FROM custom_form.user WHERE id = ? AND email=?';
+                'SELECT id, email, name FROM custom_form.user WHERE id = ? AND email=?';
             const user = await entityManager.query(query, [userId, email]);
             return user[0];
         } catch (error) {

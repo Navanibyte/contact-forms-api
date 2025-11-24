@@ -23,6 +23,7 @@ export class FormsController {
     @UseGuards(AuthGuard)
     @Get('')
     findAllByUser(@Request() request: any) {
+        console.log("DEBUG → User ID from request:", request.user.userId);
         return this.formsService.findAllByUser(request.user.userId);
     }
 
