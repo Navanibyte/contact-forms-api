@@ -24,7 +24,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 
-EXPOSE 8000
+EXPOSE 3000
 
 # Command to run the app
 CMD ["node", "dist/main.js"]
