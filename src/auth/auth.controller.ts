@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -17,6 +18,8 @@ import { SignUpDto } from "./Dto/signUp.dto";
 import { GoogleOAuthGuard } from "./services/oauth.strategies/google-oauth.strategy/google-oauth.guard";
 import { LoginDto } from "./Dto/login.dto";
 import { IgoogleRequestUser } from "./services/interfaces/google.interface";
+import { ForgotPasswordDto } from "./Dto/forgot-password.dto";
+import { ResetPasswordDto } from "./Dto/reset-password.dto";
 
 @Controller("/api/auth/")
 export class AuthController {
@@ -50,4 +53,18 @@ export class AuthController {
         }
         return res.redirect(`${process.env.FRONTEND_URL}/oauth-success?token=${accessToken}`);
     }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(
+      resetPasswordDto.token,
+      resetPasswordDto.newPassword,
+    );
+  }
+
 }
