@@ -95,13 +95,28 @@ export class FormsService {
         return this.formRepo.find({ relations: ['fields'] });
     }
 
-    findAllByUser(userId: number) {
-        return this.formRepo.find({
-            where: { userId },
-            relations: ['fields'],
-        });
-    }
+   async findAllByUser(userId: number) {
+    const forms = await this.formRepo.find({
+        where: { userId },
+        relations: ['fields'],
+    });
 
+    // Fetch submission counts for each form
+    const formsWithSubmissions = await Promise.all(
+        forms.map(async (form) => {
+            const submissionCount = await this.submissionRepo.count({
+                where: { form_id: form.form_id.toString() } // Convert to string
+            });
+            
+            return {
+                ...form,
+                total_submissions: submissionCount
+            };
+        })
+    );
+
+    return formsWithSubmissions;
+}
     async findOne(id: number) {
         const form = await this.formRepo.findOne({
             where: { form_id: id },
