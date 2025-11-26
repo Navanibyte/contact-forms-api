@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable prettier/prettier */
@@ -56,6 +58,8 @@ async function bootstrap() {
 
    // Register global exception filter
     app.useGlobalFilters(new GlobalExceptionFilter());
+    app.use('/.well-known', (req, res) => res.status(204).send());
+
 
   app.useGlobalPipes(new ValidationPipe());
   await app.listen(process.env.PORT ?? 3000);
