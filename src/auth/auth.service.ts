@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-catch */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -118,7 +119,7 @@ export class AuthService {
             const user = await entityManager.query(query, [email]);
             return user;
         } catch (error) {
-            console.log('error----> in checkUserExists', error);
+            throw error;
         }
     }
 
@@ -134,7 +135,7 @@ export class AuthService {
 
             return userResult.insertId;
         } catch (error) {
-            console.log('error----> in insertUserDetails', error);
+            throw error;
         }
     }
 
@@ -152,7 +153,7 @@ export class AuthService {
             ]);
             return jwtAuthResult.insertId;
         } catch (error) {
-            console.log('error----> in insertJwtAuthDetails', error);
+            throw error;
         }
     }
 
@@ -167,7 +168,7 @@ export class AuthService {
             const user = await entityManager.query(query, [userId, email]);
             return user[0];
         } catch (error) {
-            console.log('error----> in getUserDetails', error);
+            throw error;
         }
     }
 
@@ -182,6 +183,7 @@ export class AuthService {
             return jwtAuth;
         } catch (error) {
             console.log('error----> in getJwtAuthDetails', error);
+             throw error;
         }
     }
 
@@ -201,7 +203,7 @@ export class AuthService {
                 isUserExists[0].id,
             );
             if (!(jwtAuthDetails.length > 0)) {
-                throw new NotFoundException('JWT authentication details not found');
+                throw new NotFoundException('User details not found');
             }
 
             const isPasswordValid = await PasswordUtils.verifyPassword(
@@ -237,6 +239,7 @@ export class AuthService {
             };
         } catch (error) {
             console.log('error---->', error);
+            throw error;
         }
     }
 
@@ -333,7 +336,7 @@ export class AuthService {
                 ...response,
             };
         } catch (error) {
-            console.log('error---->', error);
+            throw error;
         }
     }
 
@@ -362,6 +365,7 @@ export class AuthService {
             return userResult.insertId;
         } catch (error) {
             console.log('error---->', error);
+            throw error;
         }
     }
 

@@ -4,6 +4,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { GlobalExceptionFilter } from './filters/http-exception.filter';
 
 // async function bootstrap() {
 //   const app = await NestFactory.create(AppModule);
@@ -52,6 +53,9 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204
   });
+
+   // Register global exception filter
+    app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.useGlobalPipes(new ValidationPipe());
   await app.listen(process.env.PORT ?? 3000);
