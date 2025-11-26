@@ -127,7 +127,7 @@ export class AuthService {
         entityManager: EntityManager,
         email: string,
         name: string,
-        password: string,
+        password: string | null,
     ) {
         try {
             const query = 'INSERT INTO custom_form.user (email, name, password) VALUES (?, ?, ?)';
@@ -298,7 +298,7 @@ export class AuthService {
                             transactionalEntityManager,
                             user.email,
                             `${user.firstName} ${user.lastName}`,
-                            isUserExists[0].password,
+                            null,
 
                         );
 
