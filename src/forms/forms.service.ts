@@ -788,7 +788,7 @@ export class FormsService {
             }
         }).join('\n');
 
-        const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+        const API_BASE_URL = process.env.API_BASE_URL;
 
         const fullHTML = `<!DOCTYPE html>
 <html lang="en">
