@@ -15,6 +15,9 @@ export class FormSubmission {
     @Column({ type: 'json' })
     submission_json: any;
 
+    @Column({ type: 'longtext', nullable: true })
+    html_email: string;
+
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     created_at: Date;
 }

@@ -98,6 +98,13 @@ export class FormsController {
 
     res.setHeader('Content-Type', 'text/html');
     return res.send(completeHtml);
-}
+  }
+
+  // Get all submissions for a form
+   @Get(':formId/submissions')
+    getFormSubmissions(@Param('formId') formId: string) {
+        console.log("Fetching submissions for form ID:", formId);
+      return this.formsService.getFormSubmissions(formId);
+    }
 
 }

@@ -634,6 +634,7 @@ export class FormsService {
             form_id: formId,
             user_id: userId,
             submission_json: dto,
+            html_email: htmlEmail,
         });
 
         const saved = await this.submissionRepo.save(submission);
@@ -1012,5 +1013,78 @@ export class FormsService {
         return fullHTML;
     }
 
+
+async getFormSubmissions(formId: string) {
+  console.log("Fetching submissions for formId:", formId);
+  
+  // Get form with its fields
+  const form = await this.formRepo.findOne({
+    where: { form_id: parseInt(formId) },
+    relations: ['fields'] // Include fields relation
+  });
+
+  if (!form) {
+    throw new NotFoundException(`Form with ID ${formId} not found`);
+  }
+
+  // Get all submissions
+  const submissions = await this.submissionRepo.find({
+    where: { form_id: formId },
+    order: { created_at: 'DESC' }
+  });
+
+  // Create a map of field_id to field_label for quick lookup
+  const fieldMap = {};
+  console.log("Form fields:", form.fields);
+  if (form.fields && form.fields.length > 0) {
+    form.fields.forEach(field => {
+      fieldMap[field.field_id] = {
+        label: field.label,
+        type: field.type,
+        order: field.field_order
+      };
+    });
+  }
+
+  // Transform submissions to replace field IDs with labels
+  const transformedSubmissions = submissions.map(submission => {
+    const transformedData = {};
+    
+    if (submission.submission_json && submission.submission_json.data) {
+      // Convert field IDs to labels
+      Object.entries(submission.submission_json.data).forEach(([fieldId, value]) => {
+        const fieldInfo = fieldMap[fieldId];
+        if (fieldInfo) {
+          // Use the field label as the key instead of the ID
+          transformedData[fieldInfo.label] = value;
+        } else {
+          // If field not found in map, keep the original key
+          transformedData[`field_${fieldId}`] = value;
+        }
+      });
+    }
+
+    return {
+      submission_id: submission.id,
+      form_id: submission.form_id,
+      user_id: submission.user_id,
+      submission_json: {
+        data: transformedData,
+        metadata: submission.submission_json.metadata
+      },
+      html_email: submission.html_email,
+      created_at: submission.created_at
+    };
+  });
+
+  return {
+    form: {
+      form_id: form.form_id,
+      form_name: form.title,
+      description: form.description
+    },
+    submissions: transformedSubmissions
+  };
+}
 
 }
