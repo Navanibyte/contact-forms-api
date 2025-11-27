@@ -75,10 +75,76 @@ export class FormsService {
         },
     };
 
+    // async create(createFormDto: CreateFormDto, userId: number) {
+    //     const { fields, ...formData } = createFormDto;
+
+    //     // Store userId in the form
+    //     const form = this.formRepo.create({
+    //         ...formData,
+    //         userId,
+    //     });
+
+    //     const savedForm = await this.formRepo.save(form);
+
+    //     // Store userId and relation in fields
+    //     const fieldEntities = fields.map((field) =>
+    //         this.fieldRepo.create({
+    //             ...field,
+    //             userId,
+    //             form: savedForm, // TypeORM sets form_id automatically
+    //         }),
+    //     );
+
+    //     await this.fieldRepo.save(fieldEntities);
+
+    //     return this.formRepo.find({
+    //         where: { form_id: savedForm.form_id },
+    //         relations: ['fields'],
+    //     });
+    // }
+
+    // async update(formId: number, updateFormDto: UpdateFormDto, userId: number) {
+    //     const { fields, ...formData } = updateFormDto;
+
+    //     // 1. Check if form exists and belongs to the user
+    //     const existingForm = await this.formRepo.findOne({
+    //         where: { form_id: formId, userId },
+    //         relations: ['fields'],
+    //     });
+
+    //     if (!existingForm) {
+    //         throw new NotFoundException("Form not found or you don't have access");
+    //     }
+
+    //     // 2. Update the form (title, description)
+    //     await this.formRepo.update({ form_id: formId }, { ...formData });
+
+    //     // 3. Delete old fields
+    //     await this.fieldRepo.delete({ form: { form_id: formId } });
+
+    //     // 4. Insert new fields
+    //     const newFieldEntities = fields.map((field) =>
+    //         this.fieldRepo.create({
+    //             ...field,
+    //             form: existingForm,
+    //             userId
+    //         })
+    //     );
+
+    //     await this.fieldRepo.save(newFieldEntities);
+
+    //     // 5. Return fresh updated form
+    //     return this.formRepo.findOne({
+    //         where: { form_id: formId },
+    //         relations: ['fields'],
+    //     });
+    // }
+
+
     async create(createFormDto: CreateFormDto, userId: number) {
         const { fields, ...formData } = createFormDto;
 
-        // Store userId in the form
+        // Create form entity
         const form = this.formRepo.create({
             ...formData,
             userId,
@@ -86,18 +152,46 @@ export class FormsService {
 
         const savedForm = await this.formRepo.save(form);
 
-        // Store userId and relation in fields
-        const fieldEntities = fields.map((field) =>
+        // Create field entities
+        const fieldEntities = fields.map((field, index) =>
             this.fieldRepo.create({
                 ...field,
                 userId,
-                form: savedForm, // TypeORM sets form_id automatically
+                form: savedForm,
+                field_order: index,
             }),
         );
 
-        await this.fieldRepo.save(fieldEntities);
+        const savedFields = await this.fieldRepo.save(fieldEntities);
 
-        return this.formRepo.find({
+        // Generate embedded HTML
+        const embeddedHtml = this.generateFullEmbedHTML(
+            {
+                form_id: savedForm.form_id,
+                title: savedForm.title,
+                description: savedForm.description,
+                styles: savedForm.styles,
+            },
+            savedFields.map((f: any) => ({
+                field_id: f.field_id,
+                type: f.type,
+                label: f.label,
+                placeholder: f.placeholder,
+                required: f.required,
+                options: f.options,
+                width: f.width,
+                position: f.field_order,
+            })),
+        );
+
+        console.log("savedForm::::", savedForm);
+
+        // Update form with embedded HTML
+        await this.formRepo.update(savedForm.form_id, {
+            embedded_code: embeddedHtml,
+        });
+
+        return this.formRepo.findOne({
             where: { form_id: savedForm.form_id },
             relations: ['fields'],
         });
@@ -106,7 +200,7 @@ export class FormsService {
     async update(formId: number, updateFormDto: UpdateFormDto, userId: number) {
         const { fields, ...formData } = updateFormDto;
 
-        // 1. Check if form exists and belongs to the user
+        // Check if form exists and belongs to user
         const existingForm = await this.formRepo.findOne({
             where: { form_id: formId, userId },
             relations: ['fields'],
@@ -116,29 +210,60 @@ export class FormsService {
             throw new NotFoundException("Form not found or you don't have access");
         }
 
-        // 2. Update the form (title, description)
+        // Update form data
         await this.formRepo.update({ form_id: formId }, { ...formData });
 
-        // 3. Delete old fields
+        // Delete old fields
         await this.fieldRepo.delete({ form: { form_id: formId } });
 
-        // 4. Insert new fields
-        const newFieldEntities = fields.map((field) =>
+        // Insert new fields
+        const newFieldEntities = fields.map((field, index) =>
             this.fieldRepo.create({
                 ...field,
                 form: existingForm,
-                userId
-            })
+                userId,
+                field_order: index,
+            }),
         );
 
-        await this.fieldRepo.save(newFieldEntities);
+        const savedFields = await this.fieldRepo.save(newFieldEntities);
 
-        // 5. Return fresh updated form
+        // Get updated form
+        const updatedForm = await this.formRepo.findOne({
+            where: { form_id: formId },
+        });
+
+        // Generate new embedded HTML
+        const embeddedHtml = this.generateFullEmbedHTML(
+            {
+                form_id: updatedForm?.form_id,
+                title: updatedForm?.title,
+                description: updatedForm?.description,
+                styles: updatedForm?.styles || this.DEFAULT_STYLES,
+            },
+            savedFields.map((f: any) => ({
+                field_id: f.field_id,
+                type: f.type,
+                label: f.label,
+                placeholder: f.placeholder,
+                required: f.required,
+                options: f.options,
+                width: f.width,
+                position: f.field_order,
+            })),
+        );
+
+        // Update form with new embedded HTML
+        await this.formRepo.update(formId, {
+            embedded_code: embeddedHtml,
+        });
+
         return this.formRepo.findOne({
             where: { form_id: formId },
             relations: ['fields'],
         });
     }
+
 
 
 
@@ -530,6 +655,361 @@ export class FormsService {
             message: 'Form submitted successfully',
             submission: saved,
         };
+    }
+
+
+    /**
+     * Generate Full Embeddable HTML for a Form
+     */
+    private generateFullEmbedHTML(form: any, fields: IFormField[]): string {
+        const styles = {
+            container: { ...this.DEFAULT_STYLES.container, ...form.styles?.container },
+            card: { ...this.DEFAULT_STYLES.card, ...form.styles?.card },
+            title: { ...this.DEFAULT_STYLES.title, ...form.styles?.title },
+            description: { ...this.DEFAULT_STYLES.description, ...form.styles?.description },
+            fields: { ...this.DEFAULT_STYLES.fields, ...form.styles?.fields },
+            button: { ...this.DEFAULT_STYLES.button, ...form.styles?.button },
+        };
+
+        // Generate field HTML
+        const fieldsHTML = fields.map((field) => {
+            const widthClass = field.width === 'half' 
+                ? 'form-field-half' 
+                : field.width === 'third' 
+                ? 'form-field-third' 
+                : 'form-field-full';
+
+            switch (field.type) {
+                case 'heading':
+                    return `
+                    <div class="${widthClass}">
+                        <h2 style="font-size: 24px; font-weight: bold; color: ${styles.title.color}; margin: 0 0 8px 0;">
+                            ${field.label}
+                        </h2>
+                    </div>`;
+
+                case 'text':
+                case 'email':
+                case 'phone':
+                case 'address':
+                    return `
+                    <div class="${widthClass}">
+                        <label style="display: block; margin-bottom: 8px; color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight};">
+                            ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                        </label>
+                        <input 
+                            type="${field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}"
+                            name="${field.field_id}"
+                            placeholder="${field.placeholder || ''}"
+                            ${field.required ? 'required' : ''}
+                            style="width: 100%; padding: ${styles.fields.inputPadding}; font-size: ${styles.fields.inputFontSize}; background-color: ${styles.fields.inputBackgroundColor}; border: 1px solid ${styles.fields.inputBorderColor}; border-radius: ${styles.fields.inputBorderRadius}; outline: none;"
+                        />
+                    </div>`;
+
+                case 'textarea':
+                    return `
+                    <div class="${widthClass}">
+                        <label style="display: block; margin-bottom: 8px; color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight};">
+                            ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                        </label>
+                        <textarea 
+                            name="${field.field_id}"
+                            placeholder="${field.placeholder || ''}"
+                            ${field.required ? 'required' : ''}
+                            rows="4"
+                            style="width: 100%; padding: ${styles.fields.inputPadding}; font-size: ${styles.fields.inputFontSize}; background-color: ${styles.fields.inputBackgroundColor}; border: 1px solid ${styles.fields.inputBorderColor}; border-radius: ${styles.fields.inputBorderRadius}; outline: none; resize: vertical; font-family: inherit;"
+                        ></textarea>
+                    </div>`;
+
+                case 'select':
+                    const optionsHTML = (field.options || [])
+                        .map(opt => `<option value="${opt.value}">${opt.label}</option>`)
+                        .join('\n                            ');
+                    return `
+                    <div class="${widthClass}">
+                        <label style="display: block; margin-bottom: 8px; color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight};">
+                            ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                        </label>
+                        <select 
+                            name="${field.field_id}"
+                            ${field.required ? 'required' : ''}
+                            style="width: 100%; padding: ${styles.fields.inputPadding}; font-size: ${styles.fields.inputFontSize}; background-color: ${styles.fields.inputBackgroundColor}; border: 1px solid ${styles.fields.inputBorderColor}; border-radius: ${styles.fields.inputBorderRadius}; outline: none;"
+                        >
+                            <option value="">${field.placeholder || 'Select an option'}</option>
+                            ${optionsHTML}
+                        </select>
+                    </div>`;
+
+                case 'checkbox':
+                    return `
+                    <div class="${widthClass}">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input 
+                                type="checkbox"
+                                name="${field.field_id}"
+                                ${field.required ? 'required' : ''}
+                                style="width: 16px; height: 16px; cursor: pointer;"
+                            />
+                            <label style="color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight}; cursor: pointer;">
+                                ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                            </label>
+                        </div>
+                    </div>`;
+
+                case 'date':
+                    return `
+                    <div class="${widthClass}">
+                        <label style="display: block; margin-bottom: 8px; color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight};">
+                            ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                        </label>
+                        <input 
+                            type="date"
+                            name="${field.field_id}"
+                            ${field.required ? 'required' : ''}
+                            style="width: 100%; padding: ${styles.fields.inputPadding}; font-size: ${styles.fields.inputFontSize}; background-color: ${styles.fields.inputBackgroundColor}; border: 1px solid ${styles.fields.inputBorderColor}; border-radius: ${styles.fields.inputBorderRadius}; outline: none;"
+                        />
+                    </div>`;
+
+                case 'signature':
+                    return `
+                    <div class="${widthClass}">
+                        <label style="display: block; margin-bottom: 8px; color: ${styles.fields.labelColor}; font-size: ${styles.fields.labelFontSize}; font-weight: ${styles.fields.labelFontWeight};">
+                            ${field.label}${field.required ? '<span style="color: #ef4444; margin-left: 4px;">*</span>' : ''}
+                        </label>
+                        <div style="width: 100%; height: 120px; border: 2px dashed ${styles.fields.inputBorderColor}; border-radius: ${styles.fields.inputBorderRadius}; display: flex; align-items: center; justify-content: center; color: ${styles.fields.labelColor}; background-color: ${styles.fields.inputBackgroundColor};">
+                            Signature Area
+                        </div>
+                        <input type="hidden" name="${field.field_id}" ${field.required ? 'required' : ''} />
+                    </div>`;
+
+                default:
+                    return '';
+            }
+        }).join('\n');
+
+        const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+
+        const fullHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${form.title || 'Form'}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: ${styles.container.backgroundColor};
+            padding: ${styles.container.padding};
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        
+        .form-container {
+            width: 100%;
+            max-width: ${styles.container.maxWidth};
+            background-color: ${styles.card.backgroundColor};
+            border: ${styles.card.borderWidth} solid ${styles.card.borderColor};
+            border-radius: ${styles.card.borderRadius};
+            padding: ${styles.card.padding};
+            box-shadow: ${styles.container.boxShadow};
+        }
+        
+        .form-header {
+            margin-bottom: 32px;
+        }
+        
+        .form-title {
+            font-size: ${styles.title.fontSize};
+            font-weight: ${styles.title.fontWeight};
+            color: ${styles.title.color};
+            text-align: ${styles.title.textAlign};
+            margin-bottom: 12px;
+        }
+        
+        .form-description {
+            font-size: ${styles.description.fontSize};
+            color: ${styles.description.color};
+            text-align: ${styles.description.textAlign};
+        }
+        
+        .form-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .form-field-full {
+            width: 100%;
+        }
+        
+        .form-field-half {
+            width: 100%;
+        }
+        
+        .form-field-third {
+            width: 100%;
+        }
+        
+        @media (min-width: 768px) {
+            .form-field-half {
+                width: calc(50% - 12px);
+            }
+            
+            .form-field-third {
+                width: calc(33.333% - 16px);
+            }
+        }
+        
+        .submit-button {
+            width: 100%;
+            padding: ${styles.button.padding};
+            font-size: ${styles.button.fontSize};
+            font-weight: ${styles.button.fontWeight};
+            color: ${styles.button.textColor};
+            background-color: ${styles.button.backgroundColor};
+            border: none;
+            border-radius: ${styles.button.borderRadius};
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .submit-button:hover {
+            background-color: ${styles.button.hoverBackgroundColor || '#2563eb'};
+        }
+        
+        .submit-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .success-message {
+            display: none;
+            padding: 16px;
+            background-color: #10b981;
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .error-message {
+            display: none;
+            padding: 16px;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <div class="success-message" id="successMessage">
+            Form submitted successfully!
+        </div>
+        
+        <div class="error-message" id="errorMessage">
+            Please fill in all required fields.
+        </div>
+        
+        <div class="form-header">
+            <h1 class="form-title">${form.title || 'Untitled Form'}</h1>
+            ${form.description ? `<p class="form-description">${form.description}</p>` : ''}
+        </div>
+        
+        <form id="mainForm" onsubmit="handleSubmit(event)">
+            <div class="form-fields">
+                ${fieldsHTML}
+            </div>
+            
+            <button type="submit" class="submit-button" id="submitButton">
+                Submit
+            </button>
+        </form>
+    </div>
+    
+    <script>
+        async function handleSubmit(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const submitButton = document.getElementById('submitButton');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Hide messages
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            // Validate form
+            if (!form.checkValidity()) {
+                errorMessage.style.display = 'block';
+                form.reportValidity();
+                return;
+            }
+            
+            // Get form data
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+
+            const payload = {
+                form_id: '${form.form_id}',
+                data: data,
+                metadata: {
+                    submitted_at: new Date().toISOString(),
+                    num_fields: form.elements.length - 1,
+                    form_title: '${form.title || 'Untitled Form'}',
+                    form_description: '${form.description || ''}'
+                }
+            }
+            
+            // Disable submit button
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+            
+            try {
+                const response = await fetch('${API_BASE_URL}/forms/${form.form_id}/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                
+                if (response.ok) {
+                    successMessage.style.display = 'block';
+                    form.reset();
+                    successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    throw new Error('Submission failed');
+                }
+            } catch (error) {
+                errorMessage.textContent = 'An error occurred. Please try again.';
+                errorMessage.style.display = 'block';
+                console.error('Form submission error:', error);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit';
+            }
+        }
+    </script>
+</body>
+</html>`;
+
+        return fullHTML;
     }
 
 
