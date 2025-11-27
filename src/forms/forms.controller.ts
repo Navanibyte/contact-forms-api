@@ -5,13 +5,15 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable prettier/prettier */
-import { Controller, Post, Body, Get, Param, Delete, UseGuards, Request, Put, Req, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, UseGuards, Request, Put, Req, Res, NotFoundException } from '@nestjs/common';
 import { FormsService } from './forms.service';
 import { CreateFormDto } from './dto/create-form.dto';
 import { AuthGuard } from "../auth/guards/auth.guard";
 import { UpdateFormDto } from './dto/update-form.dto';
 import { SubmitFormDto } from './dto/submit-form.dto';
 import { Response } from 'express';
+import { Parser } from 'json2csv';
+
 
 @Controller('forms')
 export class FormsController {
@@ -106,5 +108,35 @@ export class FormsController {
         console.log("Fetching submissions for form ID:", formId);
       return this.formsService.getFormSubmissions(formId);
     }
+
+
+  @Get(':formId/submissions/export')
+  async exportSubmissions(@Param('formId') formId: string, @Res() res: Response) {
+    const result = await this.formsService.getFormSubmissions(formId);
+
+    if (!result) {
+      throw new NotFoundException(`Form with ID ${formId} not found`);
+    }
+
+    // Flatten submissions for CSV
+    const submissions = result.submissions.map(sub => {
+      return {
+        submission_id: sub.submission_id,
+        form_id: sub.form_id,
+        user_id: sub.user_id,
+        created_at: sub.created_at,
+        ...sub.submission_json.data // merge all fields directly
+      };
+    });
+
+    // Convert JSON to CSV
+    const parser = new Parser();
+    const csv = parser.parse(submissions);
+
+    // Set headers and return CSV
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`form_${formId}_submissions.csv`);
+    return res.send(csv);
+  }
 
 }
