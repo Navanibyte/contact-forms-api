@@ -233,7 +233,7 @@ export class AuthService {
                 status: HttpStatus.OK,
                 data: {
                     access_token: accessToken,
-                    user_id: isUserExists[0].user_id,
+                    user_id: user.id,
                 }
                 // token: accessToken,
             };
