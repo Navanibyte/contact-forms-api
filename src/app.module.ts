@@ -8,6 +8,10 @@ import { FormsModule } from './forms/forms.module';
 import { ConfigModule } from '@nestjs/config';
 import { GlobalExceptionFilter } from './filters/http-exception.filter';
 import { APP_FILTER } from '@nestjs/core';
+import { PayuModule } from './payu/payu.module';
+import { OrdersModule } from './orders/orders.module';
+import { PlansModule } from './plans/plans.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -28,6 +32,11 @@ import { APP_FILTER } from '@nestjs/core';
     }),
     AuthModule,
     FormsModule,   // <-- ONLY import module
+
+    PayuModule,
+    SubscriptionsModule,
+    PlansModule,
+    OrdersModule,
   ],
 
   controllers: [AppController],
